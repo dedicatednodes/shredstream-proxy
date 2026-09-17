@@ -1,0 +1,104 @@
+# Publishes the container image for a tagged release.
+#
+# WHY ghcr.io AND NOT DOCKER HUB. The workflow this replaces pushed to Docker
+# Hub using DOCKERHUB_USER and DOCKERHUB_PWD, secrets inherited from Jito's
+# repository that do not exist in ours. It would have failed on its first run
+# with an authentication error, which reads like a broken build rather than a
+# missing secret. ghcr.io needs no secret at all: GITHUB_TOKEN is minted per run
+# and the packages:write permission below is the whole of its access.
+#
+# WHY amd64 ONLY. The Dockerfile pins `--platform=linux/amd64` on both stages.
+# The previous workflow asked buildx for linux/arm64 as well, which would have
+# produced an image tagged arm64 containing an amd64 binary: it publishes, it
+# pulls, and it fails at exec on the customer's machine. One architecture that
+# runs beats two where one is a lie.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # A run button, so this can be triggered by hand. A workflow that can only
+  # be started by an event is a workflow nobody can diagnose: when nothing
+  # happens there is no way to tell a broken trigger from a disabled Actions
+  # tab from a workflow the runner never picked up.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  # Read into env so a step-level `if` can test it: the secrets context
+  # is not dependably available there, and a missing secret has to SKIP
+  # the Docker Hub steps rather than fail the build.
+  DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Lowercased, because a registry rejects an uppercase path and
+      # github.repository carries the owner exactly as it is written.
+      - name: Resolve the image name
+        id: image
+        run: echo "name=$(echo '${{ env.IMAGE }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      # DOCKER HUB, at Tamur's request on 2026-09-17. Two registries carrying the
+      # same image under the same path, so a customer following either link
+      # lands on the same thing.
+      #
+      # IT SKIPS RATHER THAN FAILS when the secrets are absent. Without the
+      # `if`, every build on a repository that has not been given Docker Hub
+      # credentials goes red on a login step, which reads as a broken build
+      # rather than as a missing secret. That is exactly how this repository
+      # arrived: the workflows it was forked with pushed to Docker Hub with
+      # secrets that were never set here.
+      - name: Log in to Docker Hub
+        id: hub
+        if: ${{ env.DOCKERHUB_USER != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          # The Docker Hub lines resolve to an empty string when the login was
+          # skipped, and build-push-action ignores blank tag lines, so the same
+          # step serves both the credentialled and the uncredentialled case.
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.ref_name }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.hub.outcome == 'success' && format('docker.io/{0}:{1}', github.repository, github.ref_name) || '' }}
+            ${{ steps.hub.outcome == 'success' && format('docker.io/{0}:latest', github.repository) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The binary on its own, for anyone who does not want a container.
+      - name: Extract the binary
+        run: |
+          docker create --name out "${{ steps.image.outputs.name }}:${{ github.ref_name }}"
+          docker cp out:/app/localshred-lite-proxy ./localshred-lite-proxy-x86_64-unknown-linux-gnu
+          docker rm out
+          file ./localshred-lite-proxy-x86_64-unknown-linux-gnu
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ./localshred-lite-proxy-x86_64-unknown-linux-gnu
+          generate_release_notes: true

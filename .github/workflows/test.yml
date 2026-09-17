@@ -1,0 +1,30 @@
+# Runs the Rust test suite. Left on pull_request only, deliberately: master is
+# published from an already-verified tree and a second full compile on every
+# publish buys nothing.
+#
+# The runner label was Jito's, `ubuntu-22.04-16c-64g-public`, which does not
+# exist on this repository. A workflow asking for a runner nobody has does not
+# fail, it QUEUES, and it sits there looking pending for as long as anybody
+# leaves it.
+name: test
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          caller-workflow-name: test
+
+      - name: Run tests
+        run: cargo test --all-features --locked

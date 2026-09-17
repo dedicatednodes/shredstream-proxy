@@ -1,0 +1,11 @@
+*.json
+.dockerignore
+.git/
+.github/
+.gitignore
+.idea/
+README.md
+docker-build.sh
+docker-compose.yml
+docker-push.sh
+target/
