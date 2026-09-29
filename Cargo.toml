@@ -1,0 +1,57 @@
+[workspace]
+members = ["examples", "jito_protos", "proxy"]
+exclude = ["vendor"]
+resolver = "2"
+
+[workspace.package]
+version = "0.3.0"
+description = "Receives Solana shreds from LocalShred Lite and forwards them to local consumers."
+authors = ["DedicatedNodes"]
+homepage = "https://dedicatednodes.io/"
+edition = "2021"
+
+[workspace.dependencies]
+ahash = "0.8"
+arc-swap = "1.6"
+borsh = "1.5.3"
+clap = { version = "4", features = ["derive", "env"] }
+crossbeam-channel = "0.5.8"
+dashmap = "5"
+hostname = "0.4.0"
+itertools = "0.14.0"
+jito-protos = { path = "jito_protos" }
+log = "0.4"
+prost = "0.13"
+prost-types = "0.13"
+rand = "0.9"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+signal-hook = "0.3"
+socket2 = "0.5"
+solana-clock = "3.2.0"
+solana-entry = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-hash = "4.6.0"
+solana-keypair = "3.1.2"
+solana-ledger = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-metrics = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-packet = "4.3.0"
+solana-perf = { version = "=4.3.0", features = ["agave-unstable-api"] }
+solana-streamer = { version = "=4.3.0", features = ["agave-unstable-api"] }
+thiserror = "2"
+tokio = "1"
+tonic = { version = "0.13", features = ["tls-webpki-roots"] }
+tonic-build = "0.13"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wincode = "0.6.1"
+
+[patch.crates-io]
+crossbeam-epoch = { git = "https://github.com/anza-xyz/crossbeam", rev = "5ee1c6ec671d94db14ed9238eb99e59a84555aad" }
+librocksdb-sys = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
+rocksdb = { git = "https://github.com/anza-xyz/rust-rocksdb", rev = "4dba80dfe9434e595a971f5b2985ff9ba4fb31e7" }
+solana-ledger = { path = "vendor/solana-ledger" }
+
+[profile.release]
+# thin has minimal overhead vs none (default): https://blog.llvm.org/2016/06/thinlto-scalable-and-incremental-lto.html
+lto = "thin"

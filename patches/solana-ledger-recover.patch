@@ -1,0 +1,21 @@
+--- a/src/shred.rs
++++ b/src/shred.rs
+@@ -628,6 +628,18 @@
+     }
+ }
+
++pub fn recover<T: IntoIterator<Item = Shred>>(
++    shreds: T,
++    reed_solomon_cache: &ReedSolomonCache,
++) -> Result<impl Iterator<Item = Result<Shred, Error>> + use<T>, Error> {
++    let shreds = shreds
++        .into_iter()
++        .map(merkle::Shred::try_from)
++        .collect::<Result<_, _>>()?;
++    let shreds = merkle::recover(shreds, reed_solomon_cache)?;
++    Ok(shreds.map(|shred| shred.map(Shred::from)))
++}
++
+ impl From<ShredVariant> for ShredType {
+     #[inline]
+     fn from(shred_variant: ShredVariant) -> Self {
